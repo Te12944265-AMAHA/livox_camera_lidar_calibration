@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <fstream>
 #include <ros/ros.h>
+#include <string>
+#include <vector>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -15,6 +17,7 @@ using namespace std;
 
 string camera_in_path, camera_folder_path, result_path;
 int row_number, col_number, width, height;
+int isFisheye;
 
 void getParameters() {
     cout << "Get the parameters from the launch file" << endl;
@@ -48,6 +51,10 @@ void getParameters() {
         exit(1);
     }
 
+	if (!ros::param::get("fisheye", isFisheye)) {
+        cout << "Can not get the value of fisheye" << endl;
+        exit(1);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -119,6 +126,7 @@ int main(int argc, char **argv) {
 	Mat cameraMatrix = Mat(3, 3, CV_32FC1, Scalar::all(0));  /* 摄像机内参数矩阵 */
 	vector<int> point_counts;   // 每幅图像中角点的数量
 	Mat distCoeffs = Mat(1, 5, CV_32FC1, Scalar::all(0));       /* 摄像机的5个畸变系数：k1,k2,p1,p2,k3 */
+	Mat distCoeffs_fisheye = Mat(1, 4, CV_32FC1, Scalar::all(0));  /* θ_distorted = θ*(1+k1*θ^2+k2*θ^4+k3*θ^6+k4*θ^8) */
 	vector<Mat> tvecsMat;      /* 每幅图像的旋转向量 */
 	vector<Mat> rvecsMat;      /* 每幅图像的平移向量 */
 
@@ -154,7 +162,10 @@ int main(int argc, char **argv) {
 	// rvecsMat 输出，旋转向量
 	// tvecsMat 输出，位移向量
 	// 0 标定时所采用的算法
-	calibrateCamera(object_points, image_points_seq, image_size, cameraMatrix, distCoeffs, rvecsMat, tvecsMat, 0);
+	if (!isFisheye)
+		calibrateCamera(object_points, image_points_seq, image_size, cameraMatrix, distCoeffs, rvecsMat, tvecsMat, 0);
+	else
+		fisheye::calibrate(object_points, image_points_seq, image_size, cameraMatrix, distCoeffs_fisheye, rvecsMat, tvecsMat, 0);
 
 	//------------------------标定完成------------------------------------
 
@@ -164,12 +175,27 @@ int main(int argc, char **argv) {
 	double err = 0.0;               /* 每幅图像的平均误差 */
 	vector<Point2f> image_points2;  /* 保存重新计算得到的投影点 */
 	fout << "Average error: \n";
+	ifstream fin2(camera_in_path); 
+	for (i = 0; i < filenames.size(); i++){
+	//for (i = 0; i<image_count; i++) {
+		string fname = filenames[i];
+		Mat imageInput = imread(fname);
+		const char delim = '/';
+		vector<string> tok_out;
+		tokenize(s, delim, tok_out);
+		fname = tok_out.back();
+		cout << "image: " << fname << endl;
+		Mat view_gray;
+		Mat undistorted_gray, img_buf2;
+		cvtColor(imageInput, view_gray, cv::COLOR_RGB2GRAY);
 
-	for (i = 0; i<image_count; i++) {
 		vector<Point3f> tempPointSet = object_points[i];
 
 		/* 通过得到的摄像机内外参数，对空间的三维点进行重新投影计算，得到新的投影点 */
-		projectPoints(tempPointSet, rvecsMat[i], tvecsMat[i], cameraMatrix, distCoeffs, image_points2);
+		if (!isFisheye)
+			projectPoints(tempPointSet, rvecsMat[i], tvecsMat[i], cameraMatrix, distCoeffs, image_points2);
+		else
+			fisheye::projectPoints(tempPointSet, image_points2, rvecsMat[i], tvecsMat[i], cameraMatrix, distCoeffs_fisheye);
 
 		/* 计算新的投影点和旧的投影点之间的误差*/
 		vector<Point2f> tempImagePoint = image_points_seq[i];
@@ -183,8 +209,17 @@ int main(int argc, char **argv) {
 		err = norm(image_points2Mat, tempImagePointMat, NORM_L2);
 		total_err += err /= point_counts[i];
 		fout << "The error of picture " << i + 1 << " is " << err << " pixel" << endl;
+
+		if (!isFisheye)
+			undistort(imageInput, undistorted_gray, cameraMatrix, distCoeffs);
+		else
+			fisheye::undistortImage(imageInput, undistorted_gray, cameraMatrix, distCoeffs_fisheye);
+		hconcat(imageInput, undistorted_gray, img_buf2);
+		imshow("Undistorted image", img_buf2);
+		waitKey(1000); 
 	}
 	fout << "Overall average error is: " << total_err / image_count << " pixel" << endl << endl;
+	cout << "Overall average error is: " << total_err / image_count << " pixel" << endl << endl;
 
 	//-------------------------评价完成---------------------------------------------
 
@@ -192,8 +227,13 @@ int main(int argc, char **argv) {
 	Mat rotation_matrix = Mat(3, 3, CV_32FC1, Scalar::all(0));  /* 保存每幅图像的旋转矩阵 */
 	fout << "Intrinsic: " << endl;
 	fout << cameraMatrix << endl << endl;
-	fout << "Distortion parameters: " << endl;
-	fout << distCoeffs << endl << endl << endl;
+	if (!isFisheye) {
+		fout << "Regular distortion parameters: " << endl;
+		fout << distCoeffs << endl << endl << endl;
+	} else {
+		fout << "FIsheye distortion parameters: " << endl;
+		fout << distCoeffs_fisheye << endl << endl << endl;
+	}
 	cout << "Get result!" << endl;
 
 	fin.close();
