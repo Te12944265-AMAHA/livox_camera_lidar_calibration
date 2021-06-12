@@ -18,6 +18,7 @@ void writeData(const string filename, const float x, const float y, uint mode);
 cv::Mat gray_img, src_img;
 cv::RNG  random_number_generator;
 string photo_path, output_name, intrinsic_path;
+int isFisheye;
 
 void writeData(const string filename, const float x, const float y, uint mode) {
     ofstream outfile(filename.c_str(), ios_base::app);
@@ -61,6 +62,10 @@ void getParameters() {
         cout << "Can not get the value of intrinsic_path" << endl;
         exit(1);
     }
+    if (!ros::param::get("fisheye", isFisheye)) {
+        cout << "Can not get the value of fisheye" << endl;
+        exit(1);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -88,6 +93,7 @@ int main(int argc, char **argv) {
 
 	// set radial distortion and tangential distortion
     cv::Mat distCoeffs = cv::Mat::zeros(5, 1, CV_64F);
+    cv::Mat distCoeffs_fisheye = cv::Mat::zeros(4, 1, CV_64F);
     distCoeffs.at<double>(0, 0) = distortion[0];
     distCoeffs.at<double>(1, 0) = distortion[1];
     distCoeffs.at<double>(2, 0) = distortion[2];
@@ -96,7 +102,13 @@ int main(int argc, char **argv) {
 
     cv::Mat view, rview, map1, map2;
     cv::Size imageSize = src_img.size();
-    cv::initUndistortRectifyMap(cameraMatrix, distCoeffs, cv::Mat(),cv::getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0), imageSize, CV_16SC2, map1, map2);
+    if (!isFisheye)
+        cv::initUndistortRectifyMap(cameraMatrix, distCoeffs, cv::Mat(),cv::getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0), imageSize, CV_16SC2, map1, map2);
+    else {
+        cv::Mat P_new;
+        cv::fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs_fisheye, imageSize, cv::Mat(), P_new, balance=1);
+        cv::fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs_fisheye, cv::Mat(), P_new, imageSize, CV_16SC2, map1, map2);
+    }
     cv::remap(src_img, src_img, map1, map2, cv::INTER_LINEAR);  // correct the distortion
 
     cout << "Please note the four corners, and then tap a random key to give the coordinate" << endl;

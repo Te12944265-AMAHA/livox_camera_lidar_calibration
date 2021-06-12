@@ -107,15 +107,17 @@ int main(int argc, char **argv) {
 			image_points_seq.push_back(image_points_buf);  // 保存亚像素角点
 
 			/* 在图像上显示角点位置 */
-			drawChessboardCorners(view_gray, board_size, image_points_buf, false); // 用于在图片中标记角点
+			Mat gray_RGB;
+			cvtColor(view_gray, gray_RGB, cv::COLOR_GRAY2RGB);
+			drawChessboardCorners(gray_RGB, board_size, image_points_buf, true); // 用于在图片中标记角点
+			cv::resize(gray_RGB, gray_RGB, cv::Size(), 0.3, 0.3);
+			imshow("Camera Calibration", gray_RGB);       // 显示图片
 
-			imshow("Camera Calibration", view_gray);       // 显示图片
-
-			waitKey(1000); //暂停1S      
+			waitKey(500); //暂停1S      
 		}
 	}
 	// int CornerNum = board_size.width * board_size.height;  // 每张图片上总的角点数
-
+	
 	//-------------以下是摄像机标定------------------
 
 	/*棋盘三维信息*/
@@ -165,7 +167,7 @@ int main(int argc, char **argv) {
 	if (!isFisheye)
 		calibrateCamera(object_points, image_points_seq, image_size, cameraMatrix, distCoeffs, rvecsMat, tvecsMat, 0);
 	else
-		fisheye::calibrate(object_points, image_points_seq, image_size, cameraMatrix, distCoeffs_fisheye, rvecsMat, tvecsMat, 0);
+		fisheye::calibrate(object_points, image_points_seq, image_size, cameraMatrix, distCoeffs_fisheye, rvecsMat, tvecsMat, fisheye::CALIB_RECOMPUTE_EXTRINSIC | cv::fisheye::CALIB_FIX_SKEW);
 
 	//------------------------标定完成------------------------------------
 
@@ -182,7 +184,11 @@ int main(int argc, char **argv) {
 		Mat imageInput = imread(fname);
 		const char delim = '/';
 		vector<string> tok_out;
-		tokenize(s, delim, tok_out);
+		stringstream ss(fname); 
+		string temp_str;
+		while(getline(ss, temp_str, delim)){ //use comma as delim for cutting string
+			tok_out.push_back(temp_str);
+		}
 		fname = tok_out.back();
 		cout << "image: " << fname << endl;
 		Mat view_gray;
@@ -211,11 +217,13 @@ int main(int argc, char **argv) {
 		fout << "The error of picture " << i + 1 << " is " << err << " pixel" << endl;
 
 		if (!isFisheye)
-			undistort(imageInput, undistorted_gray, cameraMatrix, distCoeffs);
+			undistort(view_gray, undistorted_gray, cameraMatrix, distCoeffs);
 		else
-			fisheye::undistortImage(imageInput, undistorted_gray, cameraMatrix, distCoeffs_fisheye);
-		hconcat(imageInput, undistorted_gray, img_buf2);
-		imshow("Undistorted image", img_buf2);
+			fisheye::undistortImage(view_gray, undistorted_gray, cameraMatrix, distCoeffs_fisheye);
+		cv::resize(view_gray, view_gray, cv::Size(), 0.3, 0.3);
+		cv::resize(undistorted_gray, undistorted_gray, cv::Size(), 0.3, 0.3);
+		hconcat(view_gray, undistorted_gray, img_buf2);
+		imshow("Distorted vs Undistorted Images", img_buf2);
 		waitKey(1000); 
 	}
 	fout << "Overall average error is: " << total_err / image_count << " pixel" << endl << endl;
@@ -231,7 +239,7 @@ int main(int argc, char **argv) {
 		fout << "Regular distortion parameters: " << endl;
 		fout << distCoeffs << endl << endl << endl;
 	} else {
-		fout << "FIsheye distortion parameters: " << endl;
+		fout << "Fisheye distortion parameters: " << endl;
 		fout << distCoeffs_fisheye << endl << endl << endl;
 	}
 	cout << "Get result!" << endl;

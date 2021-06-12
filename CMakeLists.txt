@@ -19,7 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(PCL REQUIRED)
-find_package(OpenCV 3)
+find_package(OpenCV 3 REQUIRED)
 find_package(Threads)
 find_package(Ceres REQUIRED)
 
