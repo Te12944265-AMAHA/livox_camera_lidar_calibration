@@ -17,7 +17,7 @@ void writeData(const string filename, const float x, const float y, uint mode);
 
 cv::Mat gray_img, src_img;
 cv::RNG  random_number_generator;
-string photo_path, output_name, intrinsic_path;
+string photo_path, output_name, intrinsic_path, output_folder;
 int isFisheye;
 
 void writeData(const string filename, const float x, const float y, uint mode) {
@@ -54,12 +54,16 @@ void getParameters() {
         cout << "Can not get the value of input_photo_path" << endl;
         exit(1);
     }
-    if (!ros::param::get("ouput_path", output_name)) {
+    if (!ros::param::get("output_path", output_name)) {
         cout << "Can not get the value of ouput_path" << endl;
         exit(1);
     }
     if (!ros::param::get("intrinsic_path", intrinsic_path)) {
         cout << "Can not get the value of intrinsic_path" << endl;
+        exit(1);
+    }
+    if (!ros::param::get("output_folder", output_folder)) {
+        cout << "Can not get the value of output_folder" << endl;
         exit(1);
     }
     if (!ros::param::get("fisheye", isFisheye)) {
@@ -82,7 +86,7 @@ int main(int argc, char **argv) {
     vector<float> intrinsic;
     getIntrinsic(intrinsic_path, intrinsic);
     vector<float> distortion;
-    getDistortion(intrinsic_path, distortion);
+    getDistortion(intrinsic_path, distortion, isFisheye);
 
 	// set intrinsic parameters of the camera
     cv::Mat cameraMatrix = cv::Mat::eye(3, 3, CV_64F);
@@ -94,30 +98,54 @@ int main(int argc, char **argv) {
 	// set radial distortion and tangential distortion
     cv::Mat distCoeffs = cv::Mat::zeros(5, 1, CV_64F);
     cv::Mat distCoeffs_fisheye = cv::Mat::zeros(4, 1, CV_64F);
-    distCoeffs.at<double>(0, 0) = distortion[0];
-    distCoeffs.at<double>(1, 0) = distortion[1];
-    distCoeffs.at<double>(2, 0) = distortion[2];
-    distCoeffs.at<double>(3, 0) = distortion[3];
-    distCoeffs.at<double>(4, 0) = distortion[4];
+    if (!isFisheye){
+        distCoeffs.at<double>(0, 0) = distortion[0];
+        distCoeffs.at<double>(1, 0) = distortion[1];
+        distCoeffs.at<double>(2, 0) = distortion[2];
+        distCoeffs.at<double>(3, 0) = distortion[3];
+        distCoeffs.at<double>(4, 0) = distortion[4];
+    } else {
+        distCoeffs_fisheye.at<double>(0, 0) = distortion[0];
+        distCoeffs_fisheye.at<double>(1, 0) = distortion[1];
+        distCoeffs_fisheye.at<double>(2, 0) = distortion[2];
+        distCoeffs_fisheye.at<double>(3, 0) = distortion[3];
+    }
 
     cv::Mat view, rview, map1, map2;
     cv::Size imageSize = src_img.size();
-    if (!isFisheye)
-        cv::initUndistortRectifyMap(cameraMatrix, distCoeffs, cv::Mat(),cv::getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0), imageSize, CV_16SC2, map1, map2);
+    if (!isFisheye) {
+        cv::initUndistortRectifyMap(cameraMatrix, distCoeffs, 
+            cv::Mat(),cv::getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0), 
+            imageSize, CV_16SC2, map1, map2);
+    }
     else {
         cv::Mat P_new;
-        cv::fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs_fisheye, imageSize, cv::Mat(), P_new, balance=1);
-        cv::fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs_fisheye, cv::Mat(), P_new, imageSize, CV_16SC2, map1, map2);
+        cv::fisheye::estimateNewCameraMatrixForUndistortRectify(cameraMatrix, distCoeffs_fisheye, imageSize, cv::Mat(), P_new, 0);
+        cv::fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs_fisheye, cv::Mat(), cameraMatrix, imageSize, CV_16SC2, map1, map2);
     }
     cv::remap(src_img, src_img, map1, map2, cv::INTER_LINEAR);  // correct the distortion
 
     cout << "Please note the four corners, and then tap a random key to give the coordinate" << endl;
     // cv::namedWindow("source", CV_WINDOW_KEEPRATIO);
-    cv::namedWindow("source");
-    cv::imshow("source", src_img);
+    cv::Mat small_src_img;
+    cv::resize(src_img, small_src_img, cv::Size(), 0.3, 0.3);
+    cv::imshow("source preview", small_src_img);
+
+    string fname = photo_path;
+    const char delim = '/';
+    vector<string> tok_out;
+    stringstream ss(fname); 
+    string temp_str;
+    while(getline(ss, temp_str, delim)){ //use comma as delim for cutting string
+        tok_out.push_back(temp_str);
+    }
+    fname = tok_out.back();
+    string undist_file = output_folder + fname;
+
+    cv::imwrite(undist_file, src_img);
     cv::waitKey(0);
     
-    cv::destroyWindow("source");
+    //cv::destroyWindow("source preview");
     vector<cv::Point2f> corners;
     cout << "Give the corner coordinate, finish by 0 0" << endl;
     while(1) {
@@ -132,6 +160,7 @@ int main(int argc, char **argv) {
         cout << "No input corners, end process" << endl;
         return 0;
     }
+    /*
     cv::Size winSize = cv::Size(5, 5);
 	cv::Size zerozone = cv::Size(-1, -1);
     cv::TermCriteria criteria = cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 40, 0.001);
@@ -140,18 +169,23 @@ int main(int argc, char **argv) {
     cv::namedWindow("output");
     cv::cvtColor(src_img, gray_img, cv::COLOR_BGR2GRAY);
     cv::cornerSubPix(gray_img, corners, winSize, zerozone, criteria);
-
-    cv::Mat result_img = src_img.clone();
+    */
+    //cv::Mat result_img = src_img.clone();
     for(uint t = 0; t < corners.size(); ++t) {
-        cv::circle(result_img, corners[t], 3, cv::Scalar(random_number_generator.uniform(0, 255), random_number_generator.uniform(0, 255), random_number_generator.uniform(0, 255)), 1, 8, 0);
+        /*
+        cv::circle(result_img, corners[t], 9, cv::Scalar(random_number_generator.uniform(0, 255), 
+            random_number_generator.uniform(0, 255), random_number_generator.uniform(0, 255)), 3, 8, 0);
+        */
         printf("(%.3f %.3f)", corners[t].x, corners[t].y);
         writeData(output_name, corners[t].x, corners[t].y, t);
     }
     
     cout << endl << "Result saved, tap a random key to finish the process" << endl;
+    /*
     cv::namedWindow("output");
     imshow("output", result_img);
     cv::waitKey(0);
+    */
     return 0;
 }
 

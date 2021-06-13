@@ -141,7 +141,7 @@ void getIntrinsic(const string path, vector<float> &intrinsic) {
     }
 }
 
-void getDistortion(const string path, vector<float> &distortion) {
+void getDistortion(const string path, vector<float> &distortion, int isFisheye) {
     ifstream inFile;
     inFile.open(path);
     if (!inFile.is_open()) {
@@ -165,8 +165,10 @@ void getDistortion(const string path, vector<float> &distortion) {
     distortion.push_back(str2double(str));
     line >> str;
     distortion.push_back(str2double(str));
-    line >> str;
-    distortion.push_back(str2double(str));
+    if (!isFisheye){
+        line >> str;
+        distortion.push_back(str2double(str));
+    }
 }
 
 void getExtrinsic(const string path, vector<float> &extrinsic) {

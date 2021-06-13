@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
     vector<float> intrinsic;
     getIntrinsic(intrinsic_path, intrinsic);
     vector<float> distortion;
-    getDistortion(intrinsic_path, distortion);
+    getDistortion(intrinsic_path, distortion, 0);
     vector<float> extrinsic;
     getExtrinsic(extrinsic_path, extrinsic);
 

@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
 	if (!isFisheye)
 		calibrateCamera(object_points, image_points_seq, image_size, cameraMatrix, distCoeffs, rvecsMat, tvecsMat, 0);
 	else
-		fisheye::calibrate(object_points, image_points_seq, image_size, cameraMatrix, distCoeffs_fisheye, rvecsMat, tvecsMat, fisheye::CALIB_RECOMPUTE_EXTRINSIC | cv::fisheye::CALIB_FIX_SKEW);
+		fisheye::calibrate(object_points, image_points_seq, image_size, cameraMatrix, distCoeffs_fisheye, rvecsMat, tvecsMat, fisheye::CALIB_RECOMPUTE_EXTRINSIC);
 
 	//------------------------标定完成------------------------------------
 
