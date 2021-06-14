@@ -11,7 +11,7 @@ void getUVError(const string &intrinsic_path, const string &extrinsic_path, cons
 void getUVErrorNewIntrinsic(const string &extrinsic_path, const string &lidar_path, const string &photo_path, float* error, int threshold, const vector<float> &intrinsic);
 
 // read mesured value and use theoretical U,V calculated to get the total error
-void getUVError(const string &intrinsic_path, const string &extrinsic_path, const string &lidar_path, const string &photo_path, float* error, int threshold) {
+void getUVError(const string &intrinsic_path, const string &extrinsic_path, const string &lidar_path, const string &photo_path, float* error, int threshold, int visualize, cv::Size imageSize) {
     ifstream inFile_lidar;
     ifstream inFile_photo;
 
@@ -30,7 +30,7 @@ void getUVError(const string &intrinsic_path, const string &extrinsic_path, cons
     getIntrinsic(intrinsic_path, intrinsic);
     vector<float> extrinsic;
     getExtrinsic(extrinsic_path, extrinsic);
-
+    cv::Mat board(imageSize, CV_8UC3);
     while(getline(inFile_lidar, lineStr_lidar) && getline(inFile_photo, lineStr_photo)) {
         if (lineStr_lidar.size() > 10 && lineStr_photo.size() > 10) {
             double x, y, z, dataU, dataV;
@@ -67,6 +67,14 @@ void getUVError(const string &intrinsic_path, const string &extrinsic_path, cons
             errorTotalU += errorU;
             errorTotalV += errorV;
             ++count;
+            if (visualize){
+                cv::circle(board, cv::Point(theoryUV[0], theoryUV[1]), 20, cv::Scalar(0,0,255), 4);
+                cv::circle(board, cv::Point(dataU, dataV), 20, cv::Scalar(0,255, 0), 4);
+                cv::Mat board_out;
+                cv::resize(board, board_out, cv::Size(), 0.3, 0.3);
+                cv::imshow("green: data, red: theoretical", board_out);
+                cv::waitKey(0);
+            }
         }
         else if(lineStr_lidar.size() < 1 && lineStr_photo.size() < 1) {  // stop reading the data when there is an empty line
             break;

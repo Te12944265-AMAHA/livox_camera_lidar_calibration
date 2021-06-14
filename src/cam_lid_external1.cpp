@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
 
     cout << "Use the extrinsic result to reproject the data" << endl;
     float error[2] = {0, 0};
-    getUVError(intrinsic_path, extrinsic_path, lidar_path, photo_path, error, error_threshold);    
+    getUVError(intrinsic_path, extrinsic_path, lidar_path, photo_path, error, error_threshold, 1, cv::Size(2464, 2056));    
     
     cout << "u average error is: " << error[0] << endl;
     cout << "v average error is: " << error[1] << endl;
