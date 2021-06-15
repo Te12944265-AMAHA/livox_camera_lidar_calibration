@@ -130,8 +130,8 @@ int main(int argc, char **argv) {
     cv::Mat small_src_img;
     cv::resize(src_img, small_src_img, cv::Size(), 0.3, 0.3);
     cv::imshow("source preview", small_src_img);
-    cv::waitKey(0);
-    exit(0);
+    //cv::waitKey(0);
+    //exit(0);
     string fname = photo_path;
     const char delim = '/';
     vector<string> tok_out;

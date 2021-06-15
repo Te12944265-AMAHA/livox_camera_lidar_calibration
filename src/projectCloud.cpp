@@ -31,6 +31,7 @@ cv::Mat src_img;
 vector<livox_ros_driver::CustomMsg> lidar_datas; 
 int threshold_lidar;  // number of cloud point on the photo
 string input_bag_path, input_photo_path, output_path, intrinsic_path, extrinsic_path;
+int isFisheye;
 
 void loadPointcloudFromROSBag(const string& bag_path) {
     ROS_INFO("Start to load the rosbag %s", bag_path.c_str());
@@ -123,6 +124,10 @@ void getParameters() {
         cout << "Can not get the value of extrinsic_path" << endl;
         exit(1);
     }
+    if (!ros::param::get("fisheye", isFisheye)) {
+        cout << "Can not get the value of fisheye" << endl;
+        exit(1);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -141,7 +146,7 @@ int main(int argc, char **argv) {
     vector<float> intrinsic;
     getIntrinsic(intrinsic_path, intrinsic);
     vector<float> distortion;
-    getDistortion(intrinsic_path, distortion, 0);
+    getDistortion(intrinsic_path, distortion, isFisheye);
     vector<float> extrinsic;
     getExtrinsic(extrinsic_path, extrinsic);
 
@@ -154,11 +159,19 @@ int main(int argc, char **argv) {
 
 	// set radial distortion and tangential distortion
     cv::Mat distCoeffs = cv::Mat::zeros(5, 1, CV_64F);
-    distCoeffs.at<double>(0, 0) = distortion[0];
-    distCoeffs.at<double>(1, 0) = distortion[1];
-    distCoeffs.at<double>(2, 0) = distortion[2];
-    distCoeffs.at<double>(3, 0) = distortion[3];
-    distCoeffs.at<double>(4, 0) = distortion[4];
+    cv::Mat distCoeffs_fisheye = cv::Mat::zeros(4, 1, CV_64F);
+    if (!isFisheye){
+        distCoeffs.at<double>(0, 0) = distortion[0];
+        distCoeffs.at<double>(1, 0) = distortion[1];
+        distCoeffs.at<double>(2, 0) = distortion[2];
+        distCoeffs.at<double>(3, 0) = distortion[3];
+        distCoeffs.at<double>(4, 0) = distortion[4];
+    } else {
+        distCoeffs_fisheye.at<double>(0, 0) = distortion[0];
+        distCoeffs_fisheye.at<double>(1, 0) = distortion[1];
+        distCoeffs_fisheye.at<double>(2, 0) = distortion[2];
+        distCoeffs_fisheye.at<double>(3, 0) = distortion[3];
+    }
 
     ROS_INFO("Start to project the lidar cloud");
     float x, y, z;
@@ -191,7 +204,10 @@ int main(int argc, char **argv) {
 
     cv::Mat view, rview, map1, map2;
     cv::Size imageSize = src_img.size();
-    cv::initUndistortRectifyMap(cameraMatrix, distCoeffs, cv::Mat(),cv::getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0), imageSize, CV_16SC2, map1, map2);
+    if (!isFisheye)
+        cv::initUndistortRectifyMap(cameraMatrix, distCoeffs, cv::Mat(),cv::getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, imageSize, 1, imageSize, 0), imageSize, CV_16SC2, map1, map2);
+    else
+        cv::fisheye::initUndistortRectifyMap(cameraMatrix, distCoeffs_fisheye, cv::Mat(), cameraMatrix, imageSize, CV_16SC2, map1, map2);
     cv::remap(src_img, src_img, map1, map2, cv::INTER_LINEAR);  // correct the distortion
     cv::namedWindow("source", cv::WINDOW_KEEPRATIO);
     

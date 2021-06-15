@@ -32,6 +32,7 @@ typedef pcl::PointXYZRGB PointType;
 vector<livox_ros_driver::CustomMsg> lidar_datas; 
 int threshold_lidar;
 string input_photo_path, input_bag_path, intrinsic_path, extrinsic_path;
+int isFisheye;
 
 void loadPointcloudFromROSBag(const string& bag_path) {
     ROS_INFO("Start to load the rosbag %s", bag_path.c_str());
@@ -108,7 +109,11 @@ void getParameters() {
         exit(1);
     }
     if (!ros::param::get("extrinsic_path", extrinsic_path)) {
-        cout << "Can not get the value o以下程序节点中如果想修改launch文件，需要到src/calibration/launch文件夹中找对应的launch文件。f extrinsic_path" << endl;
+        cout << "Can not get the value of extrinsic_path" << endl;
+        exit(1);
+    }
+    if (!ros::param::get("fisheye", isFisheye)) {
+        cout << "Can not get the value of fisheye" << endl;
         exit(1);
     }
 }
@@ -128,7 +133,7 @@ int main(int argc, char **argv) {
     vector<float> intrinsic;
     getIntrinsic(intrinsic_path, intrinsic);
     vector<float> distortion;
-    getDistortion(intrinsic_path, distortion, 0);
+    getDistortion(intrinsic_path, distortion, isFisheye);
     vector<float> extrinsic;
     getExtrinsic(extrinsic_path, extrinsic);
     
@@ -149,16 +154,27 @@ int main(int argc, char **argv) {
 
 	// set radial distortion and tangential distortion
     cv::Mat distortion_coef = cv::Mat::zeros(5, 1, CV_64F);
-    distortion_coef.at<double>(0, 0) = distortion[0];
-    distortion_coef.at<double>(1, 0) = distortion[1];
-    distortion_coef.at<double>(2, 0) = distortion[2];
-    distortion_coef.at<double>(3, 0) = distortion[3];
-    distortion_coef.at<double>(4, 0) = distortion[4];
+    cv::Mat distortion_coef_fisheye = cv::Mat::zeros(4, 1, CV_64F);
+    if (!isFisheye){
+        distortion_coef.at<double>(0, 0) = distortion[0];
+        distortion_coef.at<double>(1, 0) = distortion[1];
+        distortion_coef.at<double>(2, 0) = distortion[2];
+        distortion_coef.at<double>(3, 0) = distortion[3];
+        distortion_coef.at<double>(4, 0) = distortion[4];
+    } else {
+        distortion_coef_fisheye.at<double>(0, 0) = distortion[0];
+        distortion_coef_fisheye.at<double>(1, 0) = distortion[1];
+        distortion_coef_fisheye.at<double>(2, 0) = distortion[2];
+        distortion_coef_fisheye.at<double>(3, 0) = distortion[3];
+    }
 
     // use intrinsic matrix and distortion matrix to correct the photo first
     cv::Mat view, rview, map1, map2;
     cv::Size imageSize = src_img.size();
-    cv::initUndistortRectifyMap(camera_matrix, distortion_coef, cv::Mat(),cv::getOptimalNewCameraMatrix(camera_matrix, distortion_coef, imageSize, 1, imageSize, 0), imageSize, CV_16SC2, map1, map2);
+    if (!isFisheye)
+        cv::initUndistortRectifyMap(camera_matrix, distortion_coef, cv::Mat(),cv::getOptimalNewCameraMatrix(camera_matrix, distortion_coef, imageSize, 1, imageSize, 0), imageSize, CV_16SC2, map1, map2);
+    else
+        cv::fisheye::initUndistortRectifyMap(camera_matrix, distortion_coef_fisheye, cv::Mat(), camera_matrix, imageSize, CV_16SC2, map1, map2);
     cv::remap(src_img, src_img, map1, map2, cv::INTER_LINEAR);  // correct the distortion
 
     int row = src_img.rows;
