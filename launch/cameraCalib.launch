@@ -4,12 +4,10 @@
     <param name="camera_folder_path"    value="$(find camera_lidar_calibration)/../../data/camera/photos/" />  <!-- the file to contain all the photos -->
     <param name="result_path"           value="$(find camera_lidar_calibration)/../../data/camera/result_2.txt" />  <!-- the file to save the intrinsic data -->
     
-    <param name="row_number"            type="int" value="8" />  <!-- the number of block on the row -->
-    <param name="col_number"            type="int" value="6" />  <!-- the number of block on the column -->
-    <param name="width"                 type="int" value="25" />  <!-- the width of each block on the chessboard(mm) -->
-    <param name="height"                type="int" value="25" />  <!-- the height of each block on the chessboard(mm)-->
-
-    <param name="fisheye"               type="int" value="1" />  <!-- whether to use the fisheye camera model-->
+    <param name="row_number"            type="int" value="8" />  <!-- number of vertices on each row -->
+    <param name="col_number"            type="int" value="6" />  <!-- number of vertices on each column -->
+    <param name="width"                 type="int" value="25" />  <!-- width of each block in mm -->
+    <param name="height"                type="int" value="25" />  <!-- height of each block in mm -->
     
     <node pkg="camera_lidar_calibration" name="cameraCalib" type="cameraCalib" output="screen"></node>
 
